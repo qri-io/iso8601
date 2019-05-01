@@ -104,12 +104,35 @@ func TestParseInterval(t *testing.T) {
 	}
 }
 
+func TestIntervalString(t *testing.T) {
+	start := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+	dur, _ := ParseDuration("P1W")
+
+	cases := []struct {
+		expect string
+		val    *Interval
+	}{
+		{"2000-01-01T00:00:00Z/2001-01-01T00:00:00Z", &Interval{Start: &start, End: &end}},
+		{"2000-01-01T00:00:00Z/P1W", &Interval{Start: &start, Duration: dur}},
+		{"P1W/2001-01-01T00:00:00Z", &Interval{End: &end, Duration: dur}},
+		{"P1W", &Interval{Duration: dur}},
+	}
+
+	for i, c := range cases {
+		got := c.val.String()
+		if c.expect != got {
+			t.Errorf("case %d. expected: '%s', got: '%s'", i, c.expect, got)
+		}
+	}
+}
+
 func TestParseRepeatingInterval(t *testing.T) {
 	interval := Interval{
 		Start: mustTime("2019-10-01T00:00:00Z"),
 		End:   mustTime("2019-10-02T00:00:00Z"),
 		Duration: Duration{
-			String:   "P1D",
+			duration: "P1D",
 			Duration: time.Hour * 24,
 		},
 	}
@@ -157,21 +180,62 @@ func TestParseRepeatingInterval(t *testing.T) {
 	}
 }
 
-func TestRepeatingIntervalNext(t *testing.T) {
+func TestRepeatingInterval(t *testing.T) {
 	a, err := ParseRepeatingInterval("R1/P1W")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Next().Repititions != 0 {
-		t.Errorf("expected single repitition next to return 0 repititions. got: %d", a.Next().Repititions)
+	if a.NextRep().Repititions != 0 {
+		t.Errorf("expected single repitition next to return 0 repititions. got: %d", a.NextRep().Repititions)
+	}
+
+	inst := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	if !a.After(inst).Equal(inst.Add(time.Hour * 24 * 7)) {
+		t.Errorf("expected After to add a week")
 	}
 
 	b, err := ParseRepeatingInterval("R/P1W")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.Next().Repititions != -1 {
-		t.Errorf("expected unbounded repitition next to return -1 repititions. got: %d", b.Next().Repititions)
+	if b.NextRep().Repititions != -1 {
+		t.Errorf("expected unbounded repitition next to return -1 repititions. got: %d", b.NextRep().Repititions)
+	}
+
+	c, err := ParseRepeatingInterval("R/P1D/2000-01-02T00:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.After(inst).IsZero() {
+		t.Errorf("expected instant after end to return zero time")
+	}
+
+	d, err := ParseRepeatingInterval("R/2100-01-01T00:00:00Z/P1D")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.After(inst).IsZero() {
+		t.Errorf("expected instant before start to return zero time")
+	}
+}
+
+func TestRepeatingIntervalString(t *testing.T) {
+	dur, _ := ParseDuration("P1W")
+	ivl := Interval{Duration: dur}
+
+	cases := []struct {
+		expect string
+		val    RepeatingInterval
+	}{
+		{"R/P1W", RepeatingInterval{Repititions: 0, Interval: ivl}},
+		{"R1/P1W", RepeatingInterval{Repititions: 1, Interval: ivl}},
+	}
+
+	for i, c := range cases {
+		got := c.val.String()
+		if c.expect != got {
+			t.Errorf("case %d. expected: '%s', got: '%s'", i, c.expect, got)
+		}
 	}
 }
 

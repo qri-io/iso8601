@@ -59,12 +59,17 @@ func ParseTime(s string) (time.Time, error) {
 //     and five seconds".
 //    https://en.wikipedia.org/wiki/ISO_8601#Usage
 type Duration struct {
-	String   string
+	duration string
 	Duration time.Duration
 }
 
+// String returns Duration's string representation
+func (d Duration) String() string {
+	return d.duration
+}
+
 const (
-	// OneDay is defined 24 hours
+	// OneDay is defined as 24 hours
 	OneDay = time.Hour * 24
 	// OneWeek is defined as 7 days
 	OneWeek = time.Hour * 24 * 7
@@ -115,7 +120,7 @@ func (u unitType) Dur() time.Duration {
 
 // ParseDuration interprets a string representation into a Duration
 func ParseDuration(s string) (d Duration, err error) {
-	d = Duration{String: s}
+	d = Duration{duration: s}
 	if len(s) < 3 {
 		err = fmt.Errorf("string '%s' is too short", s)
 		return
@@ -257,6 +262,18 @@ type Interval struct {
 	Duration Duration
 }
 
+// String returns Interval's string representation
+func (i Interval) String() string {
+	if i.Start != nil && i.End == nil {
+		return fmt.Sprintf("%s/%s", i.Start.Format(time.RFC3339), i.Duration.String())
+	} else if i.Start == nil && i.End != nil {
+		return fmt.Sprintf("%s/%s", i.Duration.String(), i.End.Format(time.RFC3339))
+	} else if i.Start != nil && i.End != nil {
+		return fmt.Sprintf("%s/%s", i.Start.Format(time.RFC3339), i.End.Format(time.RFC3339))
+	}
+	return i.Duration.String()
+}
+
 // ParseRepeatingInterval interprets a string into a RepeatingValue
 func ParseRepeatingInterval(s string) (ri RepeatingInterval, err error) {
 	if len(s) < 3 {
@@ -325,9 +342,31 @@ type RepeatingInterval struct {
 	Interval Interval
 }
 
-// Next returns the subsequent RepeatingInterval, possibly decrementing the
-// number of remaning repititions
-func (ri RepeatingInterval) Next() RepeatingInterval {
+// String formats a repeatingInterval as a string value
+func (ri RepeatingInterval) String() string {
+	if ri.Repititions > 0 {
+		return fmt.Sprintf("R%d/%s", ri.Repititions, ri.Interval)
+	}
+	return fmt.Sprintf("R/%s", ri.Interval)
+}
+
+// After returns the next instant an interval will occur from a given point
+// in time.
+// If the given time falls outside of the range specified by the interval,
+// or no repitions of the interval remain, After returns the zero time instant
+func (ri RepeatingInterval) After(t time.Time) time.Time {
+	if ri.Repititions == 0 ||
+		(ri.Interval.Start != nil && ri.Interval.Start.After(t)) ||
+		(ri.Interval.End != nil && t.After(*ri.Interval.End)) {
+		return time.Time{}
+	}
+
+	return t.Add(ri.Interval.Duration.Duration)
+}
+
+// NextRep returns the subsequent RepeatingInterval repitition,
+// possibly decrementing the number of remaning repititions
+func (ri RepeatingInterval) NextRep() RepeatingInterval {
 	if ri.Repititions <= 0 {
 		return ri
 	}
