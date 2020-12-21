@@ -1,6 +1,8 @@
 package iso8601
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -217,6 +219,34 @@ func TestRepeatingInterval(t *testing.T) {
 	if !d.After(inst).IsZero() {
 		t.Errorf("expected instant before start to return zero time")
 	}
+}
+
+func TestRepeatingIntervalJSON(t *testing.T) {
+	expect := []byte(`"R/P1W"`)
+	ri := RepeatingInterval{}
+	if err := json.Unmarshal(expect, &ri); err != nil {
+		t.Error(err)
+	}
+
+	got, err := ri.MarshalJSON()
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(expect, got) {
+		t.Errorf("byte mismatch. want: %s. got: %s", string(expect), string(got))
+	}
+
+	wrongType := []byte(`0`)
+	if err := json.Unmarshal(wrongType, &ri); err == nil {
+		t.Error("expected wrong json data type to error")
+	}
+
+	badString := []byte(`"wut"`)
+	if err := json.Unmarshal(badString, &ri); err == nil {
+		t.Error("expected bad input data to error")
+	}
+
 }
 
 func TestRepeatingIntervalString(t *testing.T) {

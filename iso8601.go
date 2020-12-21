@@ -19,6 +19,7 @@
 package iso8601
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -60,7 +61,7 @@ func ParseTime(s string) (time.Time, error) {
 //    https://en.wikipedia.org/wiki/ISO_8601#Usage
 type Duration struct {
 	duration string
-	Duration time.Duration
+	Duration time.Duration `json:"duration"`
 }
 
 // String returns Duration's string representation
@@ -257,9 +258,9 @@ func ParseInterval(s string) (i Interval, err error) {
 //      <duration>
 //    https://en.wikipedia.org/wiki/ISO_8601#Time_intervals
 type Interval struct {
-	Start    *time.Time
-	End      *time.Time
-	Duration Duration
+	Start    *time.Time `json:"start,omitempty"`
+	End      *time.Time `json:"end,omitempty"`
+	Duration Duration   `json:"duration"`
 }
 
 // String returns Interval's string representation
@@ -318,6 +319,27 @@ RUNES:
 	}
 
 	return
+}
+
+// MarshalJSON serializes repeating intervals as a string
+func (ri RepeatingInterval) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("%q", ri.String())), nil
+}
+
+// UnmarshalJSON deserializes a repeating interval from a JSON string into a
+// RepeatingInterval.
+func (ri *RepeatingInterval) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	parsed, err := ParseRepeatingInterval(s)
+	if err != nil {
+		return err
+	}
+
+	*ri = parsed
+	return nil
 }
 
 // RepeatingInterval specifies a recurring time interval. From wikipedia:
